@@ -115,8 +115,9 @@
 #define BL_PIN  PINF
 #define BL0     PINF7
 #define BL1     PINF6
-#elif defined __AVR_ATmega1280__ 
+#elif defined(__AVR_ATmega1280__) || defined(__AVR_ATmega32U4__)
 /* we just don't do anything for the MEGA and enter bootloader on reset anyway*/
+/* the same for mega32*/
 #else
 /* other ATmegas have only one UART, so only one pin is defined to enter bootloader */
 #define BL_DDR  DDRD
@@ -134,6 +135,12 @@
 #define LED_PORT PORTB
 #define LED_PIN  PINB
 #define LED      PINB7
+#elif defined (__AVR_ATmega32U4__)
+/* using yellow on Leonardo */ 
+#define LED_DDR  DDRC
+#define LED_PORT PORTC
+#define LED_PIN  PINC
+#define LED      PINC7
 #else
 /* Onboard LED is connected to pin PB5 in Arduino NG, Diecimila, and Duomilanuove */ 
 /* other boards like e.g. Crumb8, Crumb168 are using PB2 */
@@ -228,8 +235,12 @@
 #define SIG2	0x93
 #define SIG3	0x08
 #define PAGE_SIZE	0x20U	//32 words
-#endif
 
+#elif defined __AVR_ATmega32U4__
+#define SIG2	0x95
+#define SIG3	0x87
+#define PAGE_SIZE	0x40U	//64 words
+#endif
 
 /* function prototypes */
 void putch(char);
@@ -394,6 +405,13 @@ int main(void)
 	UBRRL = (((F_CPU/BAUD_RATE)/16)-1);
 	UCSRB = (1<<RXEN)|(1<<TXEN);  // enable Rx & Tx
 	UCSRC = (1<<URSEL)|(1<<UCSZ1)|(1<<UCSZ0);  // config USART; 8N1
+#elif defined __AVR_ATmega32U4__
+	/* mega32 has USART1 */
+	UBRR1L = (uint8_t)(F_CPU/(BAUD_RATE*16L)-1);
+	UBRR1H = (F_CPU/(BAUD_RATE*16L)-1) >> 8;
+	UCSR1A = 0x00;
+	UCSR1C = 0x06;
+	UCSR1B = _BV(TXEN1)|_BV(RXEN1);
 #else
 	/* m16,m32,m169,m8515,m8535 */
 	UBRRL = (uint8_t)(F_CPU/(BAUD_RATE*16L)-1);
@@ -580,7 +598,7 @@ int main(void)
 				/* if ((length.byte[0] & 0x01) == 0x01) length.word++;	//Even up an odd number of bytes */
 				if ((length.byte[0] & 0x01)) length.word++;	//Even up an odd number of bytes
 				cli();					//Disable interrupts, just to be sure
-#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega1281__)
+#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega1281__) || defined(__AVR_ATmega32U4__)
 				while(bit_is_set(EECR,EEPE));			//Wait for previous EEPROM writes to complete
 #else
 				while(bit_is_set(EECR,EEWE));			//Wait for previous EEPROM writes to complete
@@ -679,7 +697,7 @@ int main(void)
 					 "rjmp	write_page	\n\t"
 					 "block_done:		\n\t"
 					 "clr	__zero_reg__	\n\t"	//restore zero register
-#if defined __AVR_ATmega168__  || __AVR_ATmega328P__ || __AVR_ATmega128__ || __AVR_ATmega1280__ || __AVR_ATmega1281__ 
+#if defined __AVR_ATmega168__  || __AVR_ATmega328P__ || __AVR_ATmega128__ || __AVR_ATmega1280__ || __AVR_ATmega1281__ || __AVR_ATmega32U4__ 
 					 : "=m" (SPMCSR) : "M" (PAGE_SIZE) : "r0","r16","r17","r24","r25","r28","r29","r30","r31"
 #else
 					 : "=m" (SPMCR) : "M" (PAGE_SIZE) : "r0","r16","r17","r24","r25","r28","r29","r30","r31"
@@ -931,6 +949,9 @@ void putch(char ch)
 #elif defined(__AVR_ATmega168__)  || defined(__AVR_ATmega328P__)
 	while (!(UCSR0A & _BV(UDRE0)));
 	UDR0 = ch;
+#elif defined(__AVR_ATmega32U4__)
+	while (!(UCSR1A & _BV(UDRE1)));
+	UDR1 = ch;
 #else
 	/* m8,16,32,169,8515,8535,163 */
 	while (!(UCSRA & _BV(UDRE)));
@@ -976,6 +997,18 @@ char getch(void)
 			app_start();
 	}
 	return UDR0;
+#elif defined(__AVR_ATmega32U4__)
+	uint32_t count = 0;
+	
+	while(!(UCSR1A & _BV(RXC1))) {
+		/* 20060803 DojoCorp:: Addon coming from the previous Bootloader*/               
+		/* HACKME:: here is a good place to count times*/
+		count++;
+		if (count > MAX_TIME_COUNT)
+			app_start();
+	}
+
+	return UDR1;
 #else
 	/* m8,16,32,169,8515,8535,163 */
 	uint32_t count = 0;

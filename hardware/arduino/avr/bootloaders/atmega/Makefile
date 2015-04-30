@@ -196,6 +196,21 @@ mega_isp: LFUSE = FF
 mega_isp: EFUSE = F5
 mega_isp: isp
 
+mega32u4: TARGET = atmega32u4
+mega32u4: MCU_TARGET = atmega32u4
+mega32u4: CFLAGS += '-DMAX_TIME_COUNT=F_CPU>>4' '-DNUM_LED_FLASHES=0' -DBAUD_RATE=9600
+mega32u4: AVR_FREQ = 16000000L 
+mega32u4: LDSECTION  = --section-start=.text=0x7000
+mega32u4: $(PROGRAM)_atmega32u4.hex
+
+mega32u4_isp: mega32u4
+mega32u4_isp: TARGET = atmega32u4
+mega32u4_isp: MCU_TARGET = atmega32u4
+mega32u4_isp: HFUSE = D8
+mega32u4_isp: LFUSE = FF
+mega32u4_isp: EFUSE = CB
+mega32u4_isp: isp
+
 isp: $(TARGET)
 	$(ISPFUSES)
 	$(ISPFLASH)
