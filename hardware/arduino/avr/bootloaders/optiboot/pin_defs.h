@@ -78,3 +78,12 @@
 #define UART_RX_BIT 0
 #endif
 #endif
+
+/* Leonardo support */
+#if defined(__AVR_ATmega32U4__)
+/* using yellow LED on Leonardo */ 
+#define LED_DDR  DDRC
+#define LED_PORT PORTC
+#define LED_PIN  PINC
+#define LED      PINC7
+#endif

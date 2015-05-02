@@ -418,6 +418,13 @@ luminet_isp: LFUSE = 62
 luminet_isp: EFUSE = FE
 luminet_isp: isp
 
+mega32u4: TARGET = atmega32u4
+mega32u4: MCU_TARGET = atmega32u4
+mega32u4: CFLAGS += -DLED_START_FLASHES=3 -DBAUD_RATE=57600
+mega32u4: AVR_FREQ = 16000000L 
+mega32u4: LDSECTIONS  = -Wl,--section-start=.text=0x7E00
+mega32u4: $(PROGRAM)_atmega32u4.hex
+
 #
 # Generic build instructions
 #

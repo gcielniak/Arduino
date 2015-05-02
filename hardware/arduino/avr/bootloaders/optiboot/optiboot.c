@@ -246,6 +246,9 @@ void appStart() __attribute__ ((naked));
 #elif defined(__AVR_ATmega8__) || defined(__AVR_ATmega88__)
 #define RAMSTART (0x100)
 #define NRWWSTART (0x1800)
+#elif defined(__AVR_ATmega32U4__)
+#define RAMSTART (0x100)
+#define NRWWSTART (0x7000)
 #endif
 
 /* C zero initialises all global variables. However, that requires */
@@ -299,6 +302,12 @@ int main(void) {
   UCSRB = _BV(RXEN) | _BV(TXEN);  // enable Rx & Tx
   UCSRC = _BV(URSEL) | _BV(UCSZ1) | _BV(UCSZ0);  // config USART; 8N1
   UBRRL = (uint8_t)( (F_CPU + BAUD_RATE * 4L) / (BAUD_RATE * 8L) - 1 );
+#elif defined(__AVR_ATmega32U4__)
+  UBRR1L = (uint8_t)(F_CPU/(BAUD_RATE*16L)-1);
+  UBRR1H = (F_CPU/(BAUD_RATE*16L)-1) >> 8;
+  UCSR1A = 0x00;
+  UCSR1C = 0x06;
+  UCSR1B = _BV(TXEN1)|_BV(RXEN1);  
 #else
   UCSR0A = _BV(U2X0); //Double speed mode USART0
   UCSR0B = _BV(RXEN0) | _BV(TXEN0);
@@ -502,8 +511,13 @@ int main(void) {
 
 void putch(char ch) {
 #ifndef SOFT_UART
+#ifdef __AVR_ATmega32U4__
+  while (!(UCSR1A & _BV(UDRE1)));
+  UDR1 = ch;
+#else
   while (!(UCSR0A & _BV(UDRE0)));
   UDR0 = ch;
+#endif
 #else
   __asm__ __volatile__ (
     "   com %[ch]\n" // ones complement, carry set
@@ -566,6 +580,14 @@ uint8_t getch(void) {
       "r25"
 );
 #else
+#ifdef __AVR_ATmega32U4__
+  while(!(UCSR1A & _BV(RXC1)))
+    ;
+  if (!(UCSR1A & _BV(FE1)))
+    watchdogReset();
+  
+  ch = UDR1;
+#else
   while(!(UCSR0A & _BV(RXC0)))
     ;
   if (!(UCSR0A & _BV(FE0))) {
@@ -581,6 +603,7 @@ uint8_t getch(void) {
   }
   
   ch = UDR0;
+#endif
 #endif
 
 #ifdef LED_DATA_FLASH
