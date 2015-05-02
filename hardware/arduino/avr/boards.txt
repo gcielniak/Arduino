@@ -306,6 +306,47 @@ leonardo.build.extra_flags={build.usb_flags}
 
 ##############################################################
 
+leonardo_bt.name=Arduino Leonardo BT
+leonardo_bt.vid.0=0x2341
+leonardo_bt.pid.0=0x0036
+leonardo_bt.vid.1=0x2341
+leonardo_bt.pid.1=0x8036
+leonardo_bt.vid.2=0x2A03
+leonardo_bt.pid.2=0x0036
+leonardo_bt.vid.3=0x2A03
+leonardo_bt.pid.3=0x8036
+
+leonardo_bt.vid.0x2A03.warning=Uncertified
+
+leonardo_bt.upload.tool=avrdude
+leonardo_bt.upload.protocol=arduino
+leonardo_bt.upload.maximum_size=28672
+leonardo_bt.upload.maximum_data_size=2560
+leonardo_bt.upload.speed=57600
+leonardo_bt.upload.disable_flushing=true
+leonardo_bt.upload.use_1200bps_touch=false
+leonardo_bt.upload.wait_for_upload_port=true
+
+leonardo_bt.bootloader.tool=avrdude
+leonardo_bt.bootloader.low_fuses=0xff
+leonardo_bt.bootloader.high_fuses=0xd8
+leonardo_bt.bootloader.extended_fuses=0xcb
+leonardo_bt.bootloader.file=caterina/Caterina-Leonardo.hex
+leonardo_bt.bootloader.unlock_bits=0x3F
+leonardo_bt.bootloader.lock_bits=0x2F
+
+leonardo_bt.build.mcu=atmega32u4
+leonardo_bt.build.f_cpu=16000000L
+leonardo_bt.build.vid=0x2341
+leonardo_bt.build.pid=0x8036
+leonardo_bt.build.usb_product="Arduino Leonardo BT"
+leonardo_bt.build.board=AVR_LEONARDO
+leonardo_bt.build.core=arduino
+leonardo_bt.build.variant=leonardo
+leonardo_bt.build.extra_flags={build.usb_flags}
+
+##############################################################
+
 micro.name=Arduino Micro
 micro.vid.0=0x2341
 micro.pid.0=0x0037
