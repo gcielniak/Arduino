@@ -53,3 +53,12 @@ test-bin
 .directory
 hardware/arduino/avr/libraries/Bridge/examples/XivelyClient/passwords.h
 avr-toolchain-*.zip
+LUFA-111009
+.dep
+*.eep
+*.elf
+*.lss
+*.lst
+*.map
+*.o
+*.sym

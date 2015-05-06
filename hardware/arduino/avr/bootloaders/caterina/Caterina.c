@@ -56,6 +56,8 @@ static uint32_t CurrAddress;
  */
 static bool RunBootloader = true;
 
+static uint8_t com_port = 0;
+
 /* Pulse generation counters to keep track of the time remaining for each pulse type */
 #define TX_RX_LED_PULSE_PERIOD 100
 uint16_t TxLEDPulse = 0; // time remaining for Tx LED pulse
@@ -67,6 +69,8 @@ uint16_t Timeout = 0;
 
 uint16_t bootKey = 0x7777;
 volatile uint16_t *const bootKeyPtr = (volatile uint16_t *)0x0800;
+
+static uint8_t page_buffer[SPM_PAGESIZE];
 
 void StartSketch(void)
 {
@@ -188,6 +192,12 @@ void SetupHardware(void)
 	OCR1AL = 250;
 	TIMSK1 = (1 << OCIE1A);					// enable timer 1 output compare A match interrupt
 	TCCR1B = ((1 << CS11) | (1 << CS10));	// 1/64 prescaler on timer 1 input
+
+	UBRR1L = (uint8_t)(F_CPU/(BAUD_RATE*16L)-1);
+	UBRR1H = (F_CPU/(BAUD_RATE*16L)-1) >> 8;
+	UCSR1A = 0x00;
+	UCSR1C = 0x06;
+	UCSR1B = _BV(TXEN1)|_BV(RXEN1);
 
 	/* Initialize USB Subsystem */
 	USB_Init();
@@ -336,6 +346,9 @@ static void ReadWriteMemoryBlock(const uint8_t Command)
 	}
 	else
 	{
+		for (uint16_t i = 0; i < SPM_PAGESIZE; i++)
+			page_buffer[i] = FetchNextCommandByte();
+		
 		uint32_t PageStartAddress = CurrAddress;
 
 		if (MemoryType == 'F')
@@ -343,6 +356,8 @@ static void ReadWriteMemoryBlock(const uint8_t Command)
 			boot_page_erase(PageStartAddress);
 			boot_spm_busy_wait();
 		}
+		
+		uint16_t i = 0;
 
 		while (BlockSize--)
 		{
@@ -352,14 +367,14 @@ static void ReadWriteMemoryBlock(const uint8_t Command)
 				if (HighByte)
 				{
 					/* Write the next FLASH word to the current FLASH page */
-					boot_page_fill(CurrAddress, ((FetchNextCommandByte() << 8) | LowByte));
+					boot_page_fill(CurrAddress, ((page_buffer[i] << 8) | LowByte));
 
 					/* Increment the address counter after use */
 					CurrAddress += 2;
 				}
 				else
 				{
-					LowByte = FetchNextCommandByte();
+					LowByte = page_buffer[i];
 				}
 				
 				HighByte = !HighByte;
@@ -367,11 +382,12 @@ static void ReadWriteMemoryBlock(const uint8_t Command)
 			else
 			{
 				/* Write the next EEPROM byte from the endpoint */
-				eeprom_write_byte((uint8_t*)((intptr_t)(CurrAddress >> 1)), FetchNextCommandByte());
+				eeprom_write_byte((uint8_t*)((intptr_t)(CurrAddress >> 1)), page_buffer[i]);
 
 				/* Increment the address counter after use */
 				CurrAddress += 2;
 			}
+			i++;
 		}
 
 		/* If in FLASH programming mode, commit the page after writing */
@@ -400,6 +416,8 @@ static void ReadWriteMemoryBlock(const uint8_t Command)
  */
 static uint8_t FetchNextCommandByte(void)
 {
+	if (com_port == 1)
+	{
 	/* Select the OUT endpoint so that the next data byte can be read */
 	Endpoint_SelectEndpoint(CDC_RX_EPNUM);
 
@@ -417,6 +435,15 @@ static uint8_t FetchNextCommandByte(void)
 
 	/* Fetch the next byte from the OUT endpoint */
 	return Endpoint_Read_8();
+		
+	}
+	else if (com_port == 2)
+	{
+		while(!(UCSR1A & _BV(RXC1))) ;
+		return UDR1;
+	}
+	else
+		return 0;	
 }
 
 /** Writes the next response byte to the CDC data IN endpoint, and sends the endpoint back if needed to free up the
@@ -426,6 +453,8 @@ static uint8_t FetchNextCommandByte(void)
  */
 static void WriteNextResponseByte(const uint8_t Response)
 {
+	if (com_port == 1)
+	{
 	/* Select the IN endpoint so that the next data byte can be written */
 	Endpoint_SelectEndpoint(CDC_TX_EPNUM);
 
@@ -443,6 +472,14 @@ static void WriteNextResponseByte(const uint8_t Response)
 
 	/* Write the next byte to the IN endpoint */
 	Endpoint_Write_8(Response);
+	}
+	else if (com_port == 2)
+	{
+		while (!(UCSR1A & _BV(UDRE1)));
+		UDR1 = Response;		
+	}
+	else
+		return;
 	
 	TX_LED_ON();
 	TxLEDPulse = TX_RX_LED_PULSE_PERIOD;
@@ -467,13 +504,31 @@ static void WriteNextResponseByte(const uint8_t Response)
  */
 void CDC_Task(void)
 {
-	/* Select the OUT endpoint */
-	Endpoint_SelectEndpoint(CDC_RX_EPNUM);
+	if (com_port != 2)
+	{
+		/* Select the OUT endpoint */
+		Endpoint_SelectEndpoint(CDC_RX_EPNUM);
 
-	/* Check if endpoint has a command in it sent from the host */
-	if (!(Endpoint_IsOUTReceived()))
-	  return;
-	  
+		/* Check if endpoint has a command in it sent from the host */
+		if (Endpoint_IsOUTReceived())
+		{
+		  if (com_port == 0)
+			  com_port = 1;
+		}
+		else if (com_port == 1)
+			return;
+	}
+	if (com_port != 1)
+	{
+		if (UCSR1A & _BV(RXC1))
+		{
+			if (com_port == 0)
+				com_port = 2;			
+		}
+		else
+			return;
+	}
+	
 	RX_LED_ON();
 	RxLEDPulse = TX_RX_LED_PULSE_PERIOD;
 
@@ -676,39 +731,41 @@ void CDC_Task(void)
 		WriteNextResponseByte('?');
 	}
 	
-
-	/* Select the IN endpoint */
-	Endpoint_SelectEndpoint(CDC_TX_EPNUM);
-
-	/* Remember if the endpoint is completely full before clearing it */
-	bool IsEndpointFull = !(Endpoint_IsReadWriteAllowed());
-
-	/* Send the endpoint data to the host */
-	Endpoint_ClearIN();
-
-	/* If a full endpoint's worth of data was sent, we need to send an empty packet afterwards to signal end of transfer */
-	if (IsEndpointFull)
+	if (com_port == 1)
 	{
+		/* Select the IN endpoint */
+		Endpoint_SelectEndpoint(CDC_TX_EPNUM);
+
+		/* Remember if the endpoint is completely full before clearing it */
+		bool IsEndpointFull = !(Endpoint_IsReadWriteAllowed());
+
+		/* Send the endpoint data to the host */
+		Endpoint_ClearIN();
+
+		/* If a full endpoint's worth of data was sent, we need to send an empty packet afterwards to signal end of transfer */
+		if (IsEndpointFull)
+		{
+			while (!(Endpoint_IsINReady()))
+			{
+				if (USB_DeviceState == DEVICE_STATE_Unattached)
+				  return;
+			}
+
+			Endpoint_ClearIN();
+		}
+
+		/* Wait until the data has been sent to the host */
 		while (!(Endpoint_IsINReady()))
 		{
 			if (USB_DeviceState == DEVICE_STATE_Unattached)
 			  return;
 		}
 
-		Endpoint_ClearIN();
+		/* Select the OUT endpoint */
+		Endpoint_SelectEndpoint(CDC_RX_EPNUM);
+
+		/* Acknowledge the command from the host */
+		Endpoint_ClearOUT();			
 	}
-
-	/* Wait until the data has been sent to the host */
-	while (!(Endpoint_IsINReady()))
-	{
-		if (USB_DeviceState == DEVICE_STATE_Unattached)
-		  return;
-	}
-
-	/* Select the OUT endpoint */
-	Endpoint_SelectEndpoint(CDC_RX_EPNUM);
-
-	/* Acknowledge the command from the host */
-	Endpoint_ClearOUT();
 }
 

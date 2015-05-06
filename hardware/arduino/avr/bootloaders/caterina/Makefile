@@ -49,12 +49,12 @@
 # USB vendor ID (VID)
 # reuse of this VID by others is forbidden by USB-IF
 # official Arduino LLC VID
-# VID = 0x2341
+VID = 0x2341
 
 
 # USB product ID (PID)
 # official Leonardo PID
-# PID = 0x0036
+PID = 0x0036
 # official Micro PID
 # PID = 0x0037
 # official Esplora PID
@@ -127,7 +127,7 @@ OBJDIR = .
 
 
 # Path to the LUFA library
-LUFA_PATH = ../../../../../../LUFA/LUFA-111009
+LUFA_PATH = ../LUFA-111009
 
 
 # LUFA library compile-time options and predefined tokens
@@ -144,7 +144,7 @@ LUFA_OPTS += -D NO_DEVICE_REMOTE_WAKEUP
 LUFA_OPTS += -D NO_SOF_EVENTS
 
 #LUFA_OPTS += -D NO_BLOCK_SUPPORT
-#LUFA_OPTS += -D NO_EEPROM_BYTE_SUPPORT
+LUFA_OPTS += -D NO_EEPROM_BYTE_SUPPORT
 #LUFA_OPTS += -D NO_FLASH_BYTE_SUPPORT
 LUFA_OPTS += -D NO_LOCK_BYTE_WRITE_SUPPORT
 
@@ -209,7 +209,7 @@ CDEFS += -DBOOT_START_ADDR=$(BOOT_START)UL
 CDEFS += -DDEVICE_VID=$(VID)UL
 CDEFS += -DDEVICE_PID=$(PID)UL
 CDEFS += $(LUFA_OPTS)
-
+CDEFS += -DBAUD_RATE=57600UL
 
 # Place -D or -U options here for ASM sources
 ADEFS  = -DF_CPU=$(F_CPU)
